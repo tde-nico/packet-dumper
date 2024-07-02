@@ -9,17 +9,47 @@ import (
 	"time"
 )
 
-func settings_setup(s *service) {
-	s.Rotation *= time.Second
+func apply[T any](g *T, sp *T, s *T) {
+	if sp != nil {
+		*s = *sp
+	} else if g != nil {
+		*s = *g
+	}
+}
+
+func apply_settings(g, sp *servicePtr, s *service) {
+	apply(g.Port, sp.Port, &s.Port)
+	apply(g.Rotation, sp.Rotation, &s.Rotation)
+	apply(g.Iface, sp.Iface, &s.Iface)
+	apply(g.Dir, sp.Dir, &s.Dir)
+	apply(g.Name, sp.Name, &s.Name)
+	apply(g.Format, sp.Format, &s.Format)
+	apply(g.Snapslen, sp.Snapslen, &s.Snapslen)
+	apply(g.Filter, sp.Filter, &s.Filter)
+	apply(g.Zip, sp.Zip, &s.Zip)
+	apply(g.Ng, sp.Ng, &s.Ng)
+	apply(g.Enc, sp.Enc, &s.Enc)
+	apply(g.Debug, sp.Debug, &s.Debug)
+}
+
+func settings_setup(s *service, id int) {
+	var format *string
+	if id >= 0 {
+		s.Format += ".pcap"
+		format = &s.Format
+	} else {
+		format = &s.Name
+	}
 	if s.Ng {
-		s.Fname += "ng"
+		*format += "ng"
 	}
 	if s.Zip {
-		s.Fname += ".gz"
+		*format += ".gz"
 	}
 	if s.Enc {
-		s.Fname += ".aes"
+		*format += ".aes"
 	}
+	s.Rotation *= time.Second
 	if s.Snapslen <= 0 {
 		s.Snapslen = 262144
 	}
@@ -32,12 +62,18 @@ func settings_setup(s *service) {
 		words := strings.Split(s.Filter, " ")
 		s.Port = words[len(words)-1]
 	}
+	if id >= 0 {
+		s.Dir += "/service" + strconv.Itoa(id)
+		s.Name = s.Dir + "/" + s.Name + "_" + *format
+	}
 
 	if s.Debug {
 		fmt.Printf("Port: %v\n", s.Port)
 		fmt.Printf("Rotation: %v\n", s.Rotation)
 		fmt.Printf("Interface: %v\n", s.Iface)
-		fmt.Printf("Filename: %v\n", s.Fname)
+		fmt.Printf("Directory: %v\n", s.Dir)
+		fmt.Printf("Name: %v\n", s.Name)
+		fmt.Printf("Format: %v\n", s.Format)
 		fmt.Printf("Snapshot length: %v\n", s.Snapslen)
 		fmt.Printf("Filter: %v\n", s.Filter)
 		fmt.Printf("Zip: %v\n", s.Zip)
@@ -46,7 +82,7 @@ func settings_setup(s *service) {
 	}
 }
 
-func parse(ser *service) {
+func parse(ser *service, dry, no_sys *bool) {
 	var (
 		h    bool
 		help bool
@@ -58,11 +94,13 @@ func parse(ser *service) {
 
 	flag.BoolVar(&h, "h", false, "Show help")
 	flag.BoolVar(&help, "help", false, "Show help")
+	flag.BoolVar(dry, "dry-run", false, "Dry run")
+	flag.BoolVar(no_sys, "no-sys", false, "No system stats print (only multi service)")
 
 	flag.UintVar(&p, "p", 4444, "Port to capture")
 	flag.Int64Var(&G, "G", 60, "Rotation time in seconds")
-	flag.StringVar(&ser.Iface, "i", "eth0", "Interface to capture")
-	flag.StringVar(&ser.Fname, "w", "pkts_%Y-%m-%d_%H.%M.%S.pcap", "Output filename")
+	flag.StringVar(&ser.Iface, "i", "", "Interface to capture")
+	flag.StringVar(&ser.Name, "w", "pkts_%Y-%m-%d_%H-%M-%S.pcap", "Output filename")
 	flag.IntVar(&s, "s", 262144, "Snapshot length")
 	flag.BoolVar(&ser.Zip, "z", false, "set for compressed output")
 	flag.BoolVar(&ser.Ng, "ng", false, "set for pcapng output")
@@ -80,5 +118,5 @@ func parse(ser *service) {
 	ser.Snapslen = int32(s)
 	ser.Filter = strings.Join(flag.Args(), " ")
 
-	settings_setup(ser)
+	settings_setup(ser, -1)
 }

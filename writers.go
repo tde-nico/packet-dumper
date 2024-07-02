@@ -7,6 +7,8 @@ import (
 	"crypto/rand"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/pcapgo"
@@ -36,13 +38,25 @@ func encryptWriter(key []byte, writer io.Writer) (*cipher.StreamWriter, error) {
 	return &cipher.StreamWriter{S: stream, W: writer}, nil
 }
 
-func init_writers(s *service, handle *pcap.Handle, name string) (Writer, *gzip.Writer, *pcapgo.NgWriter, *pcapgo.Writer) {
+func init_writers(s *service, handle *pcap.Handle, name string) (Writer, *gzip.Writer, *pcapgo.NgWriter, *pcapgo.Writer, string) {
 	var encrypter *cipher.StreamWriter
 	var gzWriter *gzip.Writer
 	var ngWriter *pcapgo.NgWriter
 	var writer *pcapgo.Writer
 
-	out, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE, 0600)
+	i := 0
+	n := name
+	parts := strings.SplitN(name, ".pcap", 2)
+	parts[0] += "."
+	parts[1] = ".pcap" + parts[1]
+	for {
+		if _, err := os.Stat(n); os.IsNotExist(err) {
+			break
+		}
+		n = parts[0] + strconv.Itoa(i) + parts[1]
+		i += 1
+	}
+	out, err := os.OpenFile(n, os.O_RDWR|os.O_CREATE, 0600)
 	check(err, "Error opening %v out file: %v\n")
 
 	if s.Enc {
@@ -83,8 +97,8 @@ func init_writers(s *service, handle *pcap.Handle, name string) (Writer, *gzip.W
 	}
 
 	if s.Enc {
-		return encrypter, gzWriter, ngWriter, writer
+		return encrypter, gzWriter, ngWriter, writer, n
 	} else {
-		return out, gzWriter, ngWriter, writer
+		return out, gzWriter, ngWriter, writer, n
 	}
 }

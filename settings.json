@@ -1,27 +1,25 @@
 {
+	"global": {
+		"port": "4444",
+		"rotation": 5,
+		"iface": "eth0",
+		"dir": "./pcaps",
+		"name": "test",
+		"format": "%Y-%m-%d_%H-%M-%S",
+		"snapslen": 0,
+		"filter": "tcp",
+		"zip": true,
+		"ng": false,
+		"enc": true,
+		"debug": true
+	},
 	"services": [
 		{
-			"port": "4444",
-			"rotation": 5,
-			"iface": "lo",
-			"fname": "test_%Y-%m-%d_%H.%M.%S.pcap",
-			"snapslen": 0,
-			"filter": "tcp",
-			"zip": true,
-			"ng": false,
-			"enc": true,
-			"debug": true
+			"name": "soos",
+			"iface": "lo"
 		},{
-			"port": "4444",
-			"rotation": 5,
-			"iface": "eth0",
-			"fname": "test_%Y-%m-%d_%H.%M.%S.pcap",
-			"snapslen": 0,
-			"filter": "tcp",
-			"zip": true,
-			"ng": false,
-			"enc": true,
-			"debug": true
+			"name": "saas",
+			"iface": "eth0"
 		}
 	]
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func ljust(s string, n int, fill string) string {
-	return s + strings.Repeat(fill, n-len(s))
+	return strings.Repeat(fill, n-len(s)) + s
 }
 
 func format_time(s string) string {
