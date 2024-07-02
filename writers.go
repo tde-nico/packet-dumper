@@ -60,7 +60,7 @@ func init_writers(s *service, handle *pcap.Handle, name string) (Writer, *gzip.W
 	check(err, "Error opening %v out file: %v\n")
 
 	if s.Enc {
-		encrypter, err = encryptWriter(KEY, out)
+		encrypter, err = encryptWriter(s.Key, out)
 		check(err, "Error encrypting file: %v\n")
 	}
 	if s.Zip {

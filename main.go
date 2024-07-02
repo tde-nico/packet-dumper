@@ -11,7 +11,6 @@ import (
 const settings = "settings.json"
 
 var err_row int = -1
-var KEY = []byte("_TheRomanXpl0it_")
 
 var (
 	promisc bool = false
@@ -30,6 +29,7 @@ type service struct {
 	Zip      bool          `json:"zip"`
 	Ng       bool          `json:"ng"`
 	Enc      bool          `json:"enc"`
+	Key      []byte        `json:"key"`
 	Debug    bool          `json:"debug"`
 }
 
@@ -45,6 +45,7 @@ type servicePtr struct {
 	Zip      *bool          `json:"zip"`
 	Ng       *bool          `json:"ng"`
 	Enc      *bool          `json:"enc"`
+	Key      *string        `json:"key"`
 	Debug    *bool          `json:"debug"`
 }
 

@@ -10,7 +10,8 @@
 		"filter": "tcp",
 		"zip": true,
 		"ng": false,
-		"enc": true,
+		"enc": false,
+		"key": "_TheRomanXpl0it_",
 		"debug": true
 	},
 	"services": [
