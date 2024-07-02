@@ -2,9 +2,13 @@ package main
 
 import (
 	"compress/gzip"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -17,6 +21,8 @@ import (
 )
 
 const settings = "settings.json"
+
+var KEY = []byte("_TheRomanXpl0it_")
 
 var (
 	promisc bool = false
@@ -32,6 +38,7 @@ type service struct {
 	Filter   string        `json:"filter"`
 	Zip      bool          `json:"zip"`
 	Ng       bool          `json:"ng"`
+	Enc      bool          `json:"enc"`
 	Debug    bool          `json:"debug"`
 }
 
@@ -55,6 +62,7 @@ func parse(ser *service) {
 	flag.UintVar(&s, "s", 262144, "Snapshot length")
 	flag.BoolVar(&ser.Zip, "z", false, "set for compressed output")
 	flag.BoolVar(&ser.Ng, "ng", false, "set for pcapng output")
+	flag.BoolVar(&ser.Enc, "e", false, "set for encrypted output")
 	flag.BoolVar(&ser.Debug, "debug", false, "Enanales debug mode")
 	flag.Parse()
 
@@ -88,7 +96,27 @@ func parse(ser *service) {
 		fmt.Printf("Filter: %v\n", ser.Filter)
 		fmt.Printf("Zip: %v\n", ser.Zip)
 		fmt.Printf("Pcapng: %v\n", ser.Ng)
+		fmt.Printf("Encryption: %v\n", ser.Enc)
 	}
+}
+
+func encryptWriter(key []byte, writer io.Writer) (io.Writer, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	iv := make([]byte, aes.BlockSize)
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, err
+	}
+
+	if _, err := writer.Write(iv); err != nil {
+		return nil, err
+	}
+
+	stream := cipher.NewCFBEncrypter(block, iv)
+	return &cipher.StreamWriter{S: stream, W: writer}, nil
 }
 
 func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle, s *service) {
@@ -96,6 +124,7 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle, s *service)
 	var total int = 0
 	var recived int = 0
 	var out *os.File
+	var encrypter io.Writer
 	var gzWriter *gzip.Writer
 	var ngWriter *pcapgo.NgWriter
 	var writer *pcapgo.Writer
@@ -116,16 +145,30 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle, s *service)
 			if err != nil {
 				log.Fatalf("Error opening %v out file: %v\n", n, err)
 			}
+			if s.Enc {
+				encrypter, err = encryptWriter(KEY, out)
+			}
+			if err != nil {
+				log.Fatalf("Error encrypting file: %v\n", err)
+			}
 
 			if s.Zip {
-				gzWriter = gzip.NewWriter(out)
+				if s.Enc {
+					gzWriter = gzip.NewWriter(encrypter)
+				} else {
+					gzWriter = gzip.NewWriter(out)
+				}
 			}
 
 			if s.Ng {
 				if s.Zip {
 					ngWriter, err = pcapgo.NewNgWriter(gzWriter, handle.LinkType())
 				} else {
-					ngWriter, err = pcapgo.NewNgWriter(out, handle.LinkType())
+					if s.Enc {
+						ngWriter, err = pcapgo.NewNgWriter(encrypter, handle.LinkType())
+					} else {
+						ngWriter, err = pcapgo.NewNgWriter(out, handle.LinkType())
+					}
 				}
 				if err != nil {
 					log.Fatalf("error creating file: %v\n", err)
@@ -134,7 +177,11 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle, s *service)
 				if s.Zip {
 					writer = pcapgo.NewWriter(gzWriter)
 				} else {
-					writer = pcapgo.NewWriter(out)
+					if s.Enc {
+						writer = pcapgo.NewWriter(encrypter)
+					} else {
+						writer = pcapgo.NewWriter(out)
+					}
 				}
 				if err := writer.WriteFileHeader(uint32(handle.SnapLen()), handle.LinkType()); err != nil {
 					log.Fatalf("error writing file header: %v\n", err)
@@ -165,7 +212,6 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle, s *service)
 		if total == recived {
 			if s.Debug {
 				fmt.Printf("Captured %v packets in %v\n", count, out.Name())
-				fmt.Printf("%v %v\n", s.Zip, s.Ng)
 			}
 			count = 0
 			if s.Ng {
@@ -227,6 +273,9 @@ func main() {
 		if data.Services[i].Zip {
 			data.Services[i].Fname += ".gz"
 		}
+		if data.Services[i].Enc {
+			data.Services[i].Fname += ".aes"
+		}
 		if data.Services[i].Snapslen <= 0 {
 			data.Services[i].Snapslen = 262144
 		}
@@ -249,7 +298,7 @@ func main() {
 			fmt.Printf("Filter: %v\n", ser.Filter)
 			fmt.Printf("Zip: %v\n", ser.Zip)
 			fmt.Printf("Pcapng: %v\n", ser.Ng)
-			fmt.Printf("Debug: %v\n\n", ser.Debug)
+			fmt.Printf("Encryption: %v\n\n", ser.Enc)
 		}
 		go capture(&data.Services[i])
 	}
