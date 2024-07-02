@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -15,23 +16,30 @@ import (
 	"github.com/google/gopacket/pcapgo"
 )
 
-var (
-	port     string
-	rotation time.Duration
-	iface    string
-	fname    string
-	snapslen int32
-	filter   string
-	zip      bool
-	ng       bool
-	debug    bool
+const settings = "settings.json"
 
+var (
 	promisc bool = false
-	handle  *pcap.Handle
 	err     error
 )
 
-func parse() {
+type service struct {
+	Port     string        `json:"port"`
+	Rotation time.Duration `json:"rotation"`
+	Iface    string        `json:"iface"`
+	Fname    string        `json:"fname"`
+	Snapslen int32         `json:"snapslen"`
+	Filter   string        `json:"filter"`
+	Zip      bool          `json:"zip"`
+	Ng       bool          `json:"ng"`
+	Debug    bool          `json:"debug"`
+}
+
+type services struct {
+	Services []service `json:"services"`
+}
+
+func parse(ser *service) {
 	var (
 		p uint
 		G int64
@@ -45,45 +53,45 @@ func parse() {
 	flag.StringVar(&i, "i", "eth0", "Interface to capture")
 	flag.StringVar(&w, "w", "pkts_%Y-%m-%d_%H.%M.%S.pcap", "Output filename, example: test_%Y-%m-%d_%H.%M.%S.pcap")
 	flag.UintVar(&s, "s", 262144, "Snapshot length")
-	flag.BoolVar(&zip, "z", false, "set for compressed output")
-	flag.BoolVar(&ng, "ng", false, "set for pcapng output")
-	flag.BoolVar(&debug, "debug", false, "Enanales debug mode")
+	flag.BoolVar(&ser.Zip, "z", false, "set for compressed output")
+	flag.BoolVar(&ser.Ng, "ng", false, "set for pcapng output")
+	flag.BoolVar(&ser.Debug, "debug", false, "Enanales debug mode")
 	flag.Parse()
 
-	filter = strings.Join(flag.Args(), " ")
+	ser.Filter = strings.Join(flag.Args(), " ")
 
-	port = strconv.Itoa(int(p))
-	rotation = time.Duration(G) * time.Second
-	iface = i
-	fname = w
-	if ng {
-		fname += "ng"
+	ser.Port = strconv.Itoa(int(p))
+	ser.Rotation = time.Duration(G) * time.Second
+	ser.Iface = i
+	ser.Fname = w
+	if ser.Ng {
+		ser.Fname += "ng"
 	}
-	if zip {
-		fname += ".gz"
+	if ser.Zip {
+		ser.Fname += ".gz"
 	}
 	if s <= 0 {
 		s = 262144
 	}
-	snapslen = int32(s)
+	ser.Snapslen = int32(s)
 
-	if filter == "" {
-		filter = "tcp and port " + port
+	if ser.Filter == "" {
+		ser.Filter = "tcp and port " + ser.Port
 	}
 
-	if debug {
-		fmt.Printf("Port: %v\n", port)
-		fmt.Printf("Rotation: %v\n", rotation)
-		fmt.Printf("Interface: %v\n", iface)
-		fmt.Printf("Filename: %v\n", fname)
-		fmt.Printf("Snapshot length: %v\n", snapslen)
-		fmt.Printf("Filter: %v\n", filter)
-		fmt.Printf("Zip: %v\n", zip)
-		fmt.Printf("Pcapng: %v\n", ng)
+	if ser.Debug {
+		fmt.Printf("Port: %v\n", ser.Port)
+		fmt.Printf("Rotation: %v\n", ser.Rotation)
+		fmt.Printf("Interface: %v\n", ser.Iface)
+		fmt.Printf("Filename: %v\n", ser.Fname)
+		fmt.Printf("Snapshot length: %v\n", ser.Snapslen)
+		fmt.Printf("Filter: %v\n", ser.Filter)
+		fmt.Printf("Zip: %v\n", ser.Zip)
+		fmt.Printf("Pcapng: %v\n", ser.Ng)
 	}
 }
 
-func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle) {
+func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle, s *service) {
 	var count int = 0
 	var total int = 0
 	var recived int = 0
@@ -97,7 +105,7 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle) {
 		// DUMP START
 		if total == recived {
 			ct := time.Now()
-			n := strings.ReplaceAll(fname, "%Y", strconv.Itoa(ct.Year()))
+			n := strings.ReplaceAll(s.Fname, "%Y", strconv.Itoa(ct.Year()))
 			n = strings.ReplaceAll(n, "%m", strconv.Itoa(int(ct.Month())))
 			n = strings.ReplaceAll(n, "%d", strconv.Itoa(ct.Day()))
 			n = strings.ReplaceAll(n, "%H", strconv.Itoa(ct.Hour()))
@@ -109,12 +117,12 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle) {
 				log.Fatalf("Error opening %v out file: %v\n", n, err)
 			}
 
-			if zip {
+			if s.Zip {
 				gzWriter = gzip.NewWriter(out)
 			}
 
-			if ng {
-				if zip {
+			if s.Ng {
+				if s.Zip {
 					ngWriter, err = pcapgo.NewNgWriter(gzWriter, handle.LinkType())
 				} else {
 					ngWriter, err = pcapgo.NewNgWriter(out, handle.LinkType())
@@ -123,7 +131,7 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle) {
 					log.Fatalf("error creating file: %v\n", err)
 				}
 			} else {
-				if zip {
+				if s.Zip {
 					writer = pcapgo.NewWriter(gzWriter)
 				} else {
 					writer = pcapgo.NewWriter(out)
@@ -144,7 +152,7 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle) {
 		count++
 		total++
 		packet.Metadata().CaptureInfo.InterfaceIndex = 0
-		if ng {
+		if s.Ng {
 			err = ngWriter.WritePacket(packet.Metadata().CaptureInfo, packet.Data())
 		} else {
 			err = writer.WritePacket(packet.Metadata().CaptureInfo, packet.Data())
@@ -155,39 +163,96 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle) {
 
 		// DUMP END
 		if total == recived {
-			if debug {
+			if s.Debug {
 				fmt.Printf("Captured %v packets in %v\n", count, out.Name())
+				fmt.Printf("%v %v\n", s.Zip, s.Ng)
 			}
 			count = 0
-			if zip {
-				gzWriter.Close()
-			}
-			if ng {
+			if s.Ng {
 				ngWriter.Flush()
+			}
+			if s.Zip {
+				gzWriter.Close()
 			}
 			out.Close()
 		}
 	}
 }
 
-// sudo ./godump -debug -G 60 -w "test_%Y-%m-%d_%H.%M.%S.pcap" -s 0 -i eth0 tcp and port 4444
-func main() {
-	parse()
-
-	handle, err = pcap.OpenLive(iface, snapslen, promisc, rotation)
+func capture(s *service) {
+	handle, err := pcap.OpenLive(s.Iface, s.Snapslen, promisc, s.Rotation)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer handle.Close()
 
-	err = handle.SetBPFFilter(filter)
+	err = handle.SetBPFFilter(s.Filter)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if debug {
-		fmt.Println("Capturing...")
+	if s.Debug {
+		fmt.Printf("Capturing on %v...\n", s.Port)
 	}
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-	handle_packets(packetSource, handle)
+	handle_packets(packetSource, handle, s)
+}
+
+// sudo ./godump -debug -G 60 -w "test_%Y-%m-%d_%H.%M.%S.pcap" -s 0 -i eth0 tcp and port 4444
+func main() {
+	if _, err := os.Stat(settings); os.IsNotExist(err) {
+		var s service
+		parse(&s)
+		capture(&s)
+		return
+	}
+
+	file, err := os.Open(settings)
+	if err != nil {
+		log.Fatalf("Error opening file: %v\n", err)
+	}
+
+	var data services
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&data); err != nil {
+		log.Fatalf("Error decoding JSON: %v\n", err)
+	}
+	file.Close()
+
+	for i := range data.Services {
+		data.Services[i].Rotation *= time.Second
+		if data.Services[i].Ng {
+			data.Services[i].Fname += "ng"
+		}
+		if data.Services[i].Zip {
+			data.Services[i].Fname += ".gz"
+		}
+		if data.Services[i].Snapslen <= 0 {
+			data.Services[i].Snapslen = 262144
+		}
+		if data.Services[i].Filter == "" {
+			data.Services[i].Filter = "tcp and port " + data.Services[i].Port
+		} else {
+			words := strings.Split(data.Services[i].Filter, " ")
+			data.Services[i].Port = words[len(words)-1]
+		}
+	}
+
+	for i, ser := range data.Services {
+		if ser.Debug {
+			fmt.Printf("Service: %v\n", i)
+			fmt.Printf("Port: %v\n", ser.Port)
+			fmt.Printf("Rotation: %v\n", ser.Rotation)
+			fmt.Printf("Interface: %v\n", ser.Iface)
+			fmt.Printf("Filename: %v\n", ser.Fname)
+			fmt.Printf("Snapshot length: %v\n", ser.Snapslen)
+			fmt.Printf("Filter: %v\n", ser.Filter)
+			fmt.Printf("Zip: %v\n", ser.Zip)
+			fmt.Printf("Pcapng: %v\n", ser.Ng)
+			fmt.Printf("Debug: %v\n\n", ser.Debug)
+		}
+		go capture(&data.Services[i])
+	}
+
+	select {}
 }
