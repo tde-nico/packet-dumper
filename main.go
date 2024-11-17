@@ -54,7 +54,7 @@ type services struct {
 	Services []servicePtr `json:"services"`
 }
 
-func deploy(conf services, dry bool, no_sys bool) {
+func deploy(conf services, dry bool, sys_stat bool) {
 	servs := make([]service, len(conf.Services))
 	for i := range conf.Services {
 		apply_settings(&conf.Global, &conf.Services[i], &servs[i])
@@ -72,7 +72,7 @@ func deploy(conf services, dry bool, no_sys bool) {
 	}
 
 	var s int
-	if no_sys {
+	if !sys_stat {
 		s = 1
 	}
 	last := len(conf.Services) - s
@@ -93,11 +93,11 @@ func deploy(conf services, dry bool, no_sys bool) {
 // sudo ./godump -debug -G 60 -w "test_%Y-%m-%d_%H.%M.%S.pcap" -s 0 -i eth0 tcp and port 4444
 func main() {
 	var (
-		s      service
-		dry    bool
-		no_sys bool
+		s        service
+		dry      bool
+		sys_stat bool
 	)
-	parse(&s, &dry, &no_sys)
+	parse(&s, &dry, &sys_stat)
 
 	if _, err := os.Stat(settings); os.IsNotExist(err) || s.Iface != "" {
 		if !dry {
@@ -118,5 +118,5 @@ func main() {
 	}
 	file.Close()
 
-	deploy(config, dry, no_sys)
+	deploy(config, dry, sys_stat)
 }

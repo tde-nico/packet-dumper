@@ -58,7 +58,7 @@ func handle_packets(src *gopacket.PacketSource, handle *pcap.Handle, s *service,
 		check(err, "Error writing packet to file: %v\n")
 
 		// DUMP END
-		if total == recived {
+		if total == recived { // TODO s.Rotation timeout here instead
 			if s.Debug {
 				if row >= 0 {
 					move_cursor(row, 0)

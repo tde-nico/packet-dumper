@@ -105,7 +105,7 @@ func settings_setup(s *service, id int) {
 	}
 }
 
-func parse(ser *service, dry, no_sys *bool) {
+func parse(ser *service, dry, sys_stat *bool) {
 	var (
 		h    bool
 		help bool
@@ -119,7 +119,7 @@ func parse(ser *service, dry, no_sys *bool) {
 	flag.BoolVar(&h, "h", false, "Show help")
 	flag.BoolVar(&help, "help", false, "Show help")
 	flag.BoolVar(dry, "dry-run", false, "Dry run")
-	flag.BoolVar(no_sys, "no-sys", false, "No system stats print (only multi service)")
+	flag.BoolVar(sys_stat, "stat", false, "Prints system stats (only multi service)")
 	flag.BoolVar(&INLINE, "inline", false, "Inline prints")
 
 	flag.UintVar(&p, "p", 4444, "Port to capture")
@@ -127,9 +127,9 @@ func parse(ser *service, dry, no_sys *bool) {
 	flag.StringVar(&ser.Iface, "i", "", "Interface to capture")
 	flag.StringVar(&ser.Name, "w", "pkts_%Y-%m-%d_%H-%M-%S.pcap", "Output filename")
 	flag.IntVar(&s, "s", 262144, "Snapshot length")
-	flag.BoolVar(&ser.Zip, "z", false, "set for compressed output")
-	flag.BoolVar(&ser.Ng, "ng", false, "set for pcapng output")
-	flag.StringVar(&k, "k", "", "set for encrypted output")
+	flag.BoolVar(&ser.Zip, "z", false, "Set for compressed output")
+	flag.BoolVar(&ser.Ng, "ng", false, "Set for pcapng output")
+	flag.StringVar(&k, "k", "", "Set for encrypted output")
 	flag.BoolVar(&ser.Debug, "debug", false, "Enanales debug mode")
 	flag.Parse()
 
